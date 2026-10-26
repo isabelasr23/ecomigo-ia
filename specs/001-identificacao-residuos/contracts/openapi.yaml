@@ -1,0 +1,219 @@
+openapi: 3.1.0
+info:
+  title: Ecomigo
+  version: 0.1.0
+  description: Contrato documental do MVP existente; gerado da API local e complementado
+    com erros explícitos do código. Sem autenticação. Validação de IA e armazenamento
+    de fotos não são serviços separados.
+paths:
+  /api/health:
+    get:
+      summary: Health
+      operationId: health_api_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '413':
+          description: Corpo HTTP excede limite global.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationError'
+        '503':
+          description: Consulta ao banco indisponível quando tratada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationError'
+      description: Verifica banco e presença de chave, sem testar a credencial ou
+        o provedor. Schema 200 permanece sem campos tipados porque a implementação
+        não declara response_model.
+  /api/analises:
+    post:
+      summary: Analyze
+      operationId: analyze_api_analises_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_analyze_api_analises_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Analysis'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '400':
+          description: Arquivo vazio ou erro de parsing multipart tratado pelo framework.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationError'
+        '413':
+          description: Arquivo maior que 5 MiB ou corpo maior que 5 MiB + 64 KiB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationError'
+        '415':
+          description: Conteúdo/MIME inválido, imagem animada ou proteção de dimensões
+            acionada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationError'
+        '502':
+          description: Resposta inválida, incompleta, bloqueada ou erro externo tratado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationError'
+        '503':
+          description: Banco, chave, provedor, cota ou alta demanda indisponível conforme
+            tratamento implementado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationError'
+        '504':
+          description: Timeout da chamada externa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationError'
+      description: Recebe campo imagem. Não persiste fotografia. Consulta orientação
+        apenas para identificação não inconclusiva. Misto/desconhecido são forçados
+        a inconclusivo. Sem orientação cadastrada, campos de orientação são nulos.
+      x-max-file-bytes: 5242880
+      x-max-body-bytes: 5308416
+      x-accepted-image-types:
+      - image/jpeg
+      - image/png
+components:
+  schemas:
+    Analysis:
+      properties:
+        objeto:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Objeto
+        material:
+          type: string
+          enum:
+          - papel
+          - plastico
+          - metal
+          - vidro
+          - misto
+          - desconhecido
+          title: Material
+        identificacao_inconclusiva:
+          type: boolean
+          title: Identificacao Inconclusiva
+        observacao:
+          type: string
+          maxLength: 800
+          minLength: 1
+          title: Observacao
+        orientacao:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Orientacao
+        cuidados:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cuidados
+        fonte_orientacao:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fonte Orientacao
+        data_atualizacao:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Data Atualizacao
+        orientacao_provisoria:
+          type: boolean
+          title: Orientacao Provisoria
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - objeto
+      - material
+      - identificacao_inconclusiva
+      - observacao
+      title: Analysis
+    Body_analyze_api_analises_post:
+      properties:
+        imagem:
+          type: string
+          format: binary
+          title: Imagem
+      type: object
+      required:
+      - imagem
+      title: Body_analyze_api_analises_post
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    ApplicationError:
+      type: object
+      required:
+      - detail
+      properties:
+        detail:
+          type: string
+x-documentation-notes:
+- Erros não tratados podem resultar em 500; não há envelope JSON 500 garantido.
+- A ausência de response_model em health impede descrever campos como garantia do
+  OpenAPI gerado.
+- Limites de upload são documentados em extensões; o schema binário gerado não expressa
+  validação real de imagem.
